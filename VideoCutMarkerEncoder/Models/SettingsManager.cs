@@ -52,6 +52,8 @@ namespace VideoCutMarkerEncoder.Models
                     string json = File.ReadAllText(_settingsFilePath);
                     Settings = JsonSerializer.Deserialize<AppSettings>(json);
 
+                    Settings.ShareFolder = Path.Combine(_appFolder, "Share");
+                    Settings.OutputFolder = Path.Combine(_appFolder, "Output");
                     // FFmpeg 경로 재설정 (항상 상대 경로로)
                     Settings.FFmpegPath = Path.Combine(_appFolder, "FFmpeg", "ffmpeg.exe");
                 }

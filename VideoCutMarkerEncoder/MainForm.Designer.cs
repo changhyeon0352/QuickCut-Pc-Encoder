@@ -30,8 +30,8 @@
         {
             panelHeader = new Panel();
             lblStatus = new Label();
-            btnSettings = new Button();
             btnShareHelp = new Button();
+            btnSettings = new Button();
             lblStatusTitle = new Label();
             panelInfo = new Panel();
             txtShareInfo = new TextBox();
@@ -43,7 +43,6 @@
             columnStatus = new ColumnHeader();
             columnProgress = new ColumnHeader();
             lblTasks = new Label();
-            
             panelHeader.SuspendLayout();
             panelInfo.SuspendLayout();
             panelTasks.SuspendLayout();
@@ -60,35 +59,20 @@
             panelHeader.Location = new Point(0, 0);
             panelHeader.Name = "panelHeader";
             panelHeader.Size = new Size(684, 60);
-            // 
-            // lblStatusTitle
-            // 
-            lblStatusTitle.AutoSize = true;
-            lblStatusTitle.Font = new Font("Segoe UI", 14.25F, FontStyle.Bold, GraphicsUnit.Point, 0);
-            lblStatusTitle.Location = new Point(12, 20);
-            lblStatusTitle.Name = "lblStatusTitle";
-            lblStatusTitle.Text = "VideoCutMarker Encoder";
+            panelHeader.TabIndex = 3;
             // 
             // lblStatus
             // 
             lblStatus.Anchor = AnchorStyles.Top | AnchorStyles.Right;
+            lblStatus.AutoSize = true;
             lblStatus.Font = new Font("Segoe UI", 12F, FontStyle.Bold, GraphicsUnit.Point, 0);
             lblStatus.ForeColor = Color.Red;
             lblStatus.Location = new Point(250, 20);
-            lblStatus.AutoSize = true;
             lblStatus.Name = "lblStatus";
+            lblStatus.Size = new Size(58, 21);
+            lblStatus.TabIndex = 0;
             lblStatus.Text = "중지됨";
             lblStatus.TextAlign = ContentAlignment.MiddleLeft;
-            // 
-            // btnSettings
-            // 
-            btnSettings.Anchor = AnchorStyles.Top | AnchorStyles.Right;
-            btnSettings.Location = new Point(600, 20);
-            btnSettings.Name = "btnSettings";
-            btnSettings.Size = new Size(75, 23);
-            btnSettings.Text = "Setting";
-            btnSettings.UseVisualStyleBackColor = true;
-            btnSettings.Click += btnSettings_Click;
             // 
             // btnShareHelp
             // 
@@ -96,10 +80,31 @@
             btnShareHelp.Location = new Point(450, 20);
             btnShareHelp.Name = "btnShareHelp";
             btnShareHelp.Size = new Size(50, 23);
+            btnShareHelp.TabIndex = 1;
             btnShareHelp.Text = "Help";
             btnShareHelp.UseVisualStyleBackColor = true;
             btnShareHelp.Click += btnShareHelp_Click;
-            
+            // 
+            // btnSettings
+            // 
+            btnSettings.Anchor = AnchorStyles.Top | AnchorStyles.Right;
+            btnSettings.Location = new Point(600, 20);
+            btnSettings.Name = "btnSettings";
+            btnSettings.Size = new Size(75, 23);
+            btnSettings.TabIndex = 2;
+            btnSettings.Text = "Setting";
+            btnSettings.UseVisualStyleBackColor = true;
+            btnSettings.Click += btnSettings_Click;
+            // 
+            // lblStatusTitle
+            // 
+            lblStatusTitle.AutoSize = true;
+            lblStatusTitle.Font = new Font("Segoe UI", 14.25F, FontStyle.Bold, GraphicsUnit.Point, 0);
+            lblStatusTitle.Location = new Point(12, 20);
+            lblStatusTitle.Name = "lblStatusTitle";
+            lblStatusTitle.Size = new Size(238, 25);
+            lblStatusTitle.TabIndex = 3;
+            lblStatusTitle.Text = "VideoCutMarker Encoder";
             // 
             // panelInfo
             // 
@@ -121,7 +126,7 @@
             txtShareInfo.Multiline = true;
             txtShareInfo.Name = "txtShareInfo";
             txtShareInfo.ReadOnly = true;
-            txtShareInfo.Size = new Size(660, 75);
+            txtShareInfo.Size = new Size(660, 105);
             txtShareInfo.TabIndex = 1;
             txtShareInfo.Text = "서비스가 중지되었습니다. '시작' 버튼을 눌러 서비스를 시작하세요.";
             // 
@@ -142,16 +147,16 @@
             panelTasks.Controls.Add(listTasks);
             panelTasks.Controls.Add(lblTasks);
             panelTasks.Dock = DockStyle.Fill;
-            panelTasks.Location = new Point(0, 180);
+            panelTasks.Location = new Point(0, 210);
             panelTasks.Name = "panelTasks";
             panelTasks.Padding = new Padding(12);
-            panelTasks.Size = new Size(684, 281);
+            panelTasks.Size = new Size(684, 251);
             panelTasks.TabIndex = 2;
             // 
             // btnOpenOutput
             // 
             btnOpenOutput.Anchor = AnchorStyles.Bottom | AnchorStyles.Right;
-            btnOpenOutput.Location = new Point(570, 246);
+            btnOpenOutput.Location = new Point(570, 216);
             btnOpenOutput.Name = "btnOpenOutput";
             btnOpenOutput.Size = new Size(102, 23);
             btnOpenOutput.TabIndex = 2;
@@ -167,7 +172,7 @@
             listTasks.GridLines = true;
             listTasks.Location = new Point(12, 33);
             listTasks.Name = "listTasks";
-            listTasks.Size = new Size(660, 236);
+            listTasks.Size = new Size(660, 206);
             listTasks.TabIndex = 1;
             listTasks.UseCompatibleStateImageBehavior = false;
             listTasks.View = View.Details;
@@ -198,7 +203,6 @@
             lblTasks.Size = new Size(78, 21);
             lblTasks.TabIndex = 0;
             lblTasks.Text = "처리 작업";
-            
             // 
             // MainForm
             // 

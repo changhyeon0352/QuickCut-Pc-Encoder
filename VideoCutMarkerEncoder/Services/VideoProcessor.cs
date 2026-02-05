@@ -81,7 +81,7 @@ namespace VideoCutMarkerEncoder.Services
 
         private static void FindVideoFilePath(VideoEditMetadata metadata, string metadataFilePath)
         {
-            if (!string.IsNullOrEmpty(metadata.VideoPath))
+            if (!string.IsNullOrEmpty(metadata.VideoPath)&& metadata.VideoPath.StartsWith("smb:/"))
             {
                 Debug.WriteLine($"SMB 비디오 감지: {metadata.VideoPath}");
 
@@ -382,8 +382,25 @@ namespace VideoCutMarkerEncoder.Services
                 if (isSmbVideo)
                 {
                     // SMB 비디오: 원본과 같은 폴더에 출력
+                    // ✨ 실제 해상도 확인
+                    var resolution = await GetActualResolutionAsync(metadata.VideoPath);
+
+                    if (resolution.HasValue)
+                    {
+                        int actualWidth = resolution.Value.width;
+                        int actualHeight = resolution.Value.height;
+                        int metaWidth = metadata.VideoWidth;
+                        int metaHeight = metadata.VideoHeight;
+
+                        // ✨ 해상도 불일치 시 보정
+                        if (actualWidth != metaWidth || actualHeight != metaHeight)
+                        {
+                            metadata = ValidateAndCorrectMetadata(metadata, actualWidth, actualHeight);
+
+                        }
+                    }
+
                     outputFolder = Path.GetDirectoryName(metadata.VideoPath);
-                    Debug.WriteLine($"SMB 비디오 - 출력 폴더: {outputFolder}");
                 }
                 else
                 {
@@ -490,6 +507,28 @@ namespace VideoCutMarkerEncoder.Services
             if (metadata.ReferenceResolution == null)
                 throw new Exception("Merge 모드에는 기준 해상도가 필요합니다.");
 
+            // ⭐ 스케일링 적용 시 ReferenceResolution 조정
+            if (metadata.EncodingSettings.EnableScaling && !string.IsNullOrEmpty(metadata.EncodingSettings.ScaleFilter))
+            {
+                string scaleFilter = GetOptimizedScaleFilter(metadata);
+                if (!string.IsNullOrEmpty(scaleFilter))
+                {
+                    var (newWidth, newHeight) = ApplyScaleToResolution(
+                        metadata.ReferenceResolution.Width,
+                        metadata.ReferenceResolution.Height,
+                        scaleFilter
+                    );
+
+                    metadata.ReferenceResolution = new ReferenceResolution
+                    {
+                        Width = newWidth,
+                        Height = newHeight
+                    };
+
+                    System.Diagnostics.Debug.WriteLine($"⭐ ReferenceResolution 스케일링 적용: {newWidth}x{newHeight}");
+                }
+            }
+
             // 모든 세그먼트를 시간순으로 정렬
             var allSegments = GetSegmentsSortedByTime(metadata);
             if (allSegments.Count == 0)
@@ -540,6 +579,44 @@ namespace VideoCutMarkerEncoder.Services
 
             UpdateProgress(task, 100, "Merge 완료");
             return finalOutputPath;
+        }
+
+        /// <summary>
+        /// 스케일 필터를 해상도에 적용
+        /// </summary>
+        private (int width, int height) ApplyScaleToResolution(int width, int height, string scaleFilter)
+        {
+            try
+            {
+                // scale=-1:720
+                if (scaleFilter.StartsWith("scale=-1:"))
+                {
+                    var match = System.Text.RegularExpressions.Regex.Match(scaleFilter, @"scale=-1:(\d+)");
+                    if (match.Success)
+                    {
+                        int targetHeight = int.Parse(match.Groups[1].Value);
+                        double ratio = (double)targetHeight / height;
+                        return ((int)(width * ratio), targetHeight);
+                    }
+                }
+                // scale=1280:-1
+                else if (scaleFilter.Contains(":-1"))
+                {
+                    var match = System.Text.RegularExpressions.Regex.Match(scaleFilter, @"scale=(\d+):-1");
+                    if (match.Success)
+                    {
+                        int targetWidth = int.Parse(match.Groups[1].Value);
+                        double ratio = (double)targetWidth / width;
+                        return (targetWidth, (int)(height * ratio));
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"스케일 적용 오류: {ex.Message}");
+            }
+
+            return (width, height);
         }
 
         /// <summary>
@@ -826,8 +903,7 @@ namespace VideoCutMarkerEncoder.Services
             string baseName = Path.GetFileNameWithoutExtension(metadata.VideoFileName);
             string prefix = metadata.EncodingSettings?.OutputPrefix ?? "";
             string suffix = metadata.EncodingSettings?.OutputSuffix ?? "";
-            string finalSuffix = $"{suffix}_merged";
-            string finalFileName = GenerateUniqueFileName(prefix, baseName, finalSuffix, ".mp4");
+            string finalFileName = GenerateUniqueFileName(prefix, baseName, suffix, ".mp4");
             string finalPath = Path.Combine(outputFolder, finalFileName);
 
             if (tempFiles.Count == 1)
@@ -1038,7 +1114,136 @@ namespace VideoCutMarkerEncoder.Services
             });
         }
 
+        /// <summary>
+        /// FFprobe로 실제 비디오 해상도 확인
+        /// </summary>
+        private async Task<(int width, int height)?> GetActualResolutionAsync(string videoPath)
+        {
+            try
+            {
+                // ffprobe 경로 (ffmpeg와 같은 폴더)
+                string ffprobePath = Path.Combine(
+                    Path.GetDirectoryName(_ffmpegPath),
+                    "ffprobe.exe"
+                );
 
+                if (!File.Exists(ffprobePath))
+                {
+                    Debug.WriteLine("⚠️ ffprobe.exe를 찾을 수 없습니다. 메타데이터 검증을 건너뜁니다.");
+                    return null;
+                }
 
+                using (Process process = new Process())
+                {
+                    process.StartInfo.FileName = ffprobePath;
+                    process.StartInfo.Arguments = $"-v error -select_streams v:0 " +
+                                                $"-show_entries stream=width,height " +
+                                                $"-of csv=p=0 \"{videoPath}\"";
+                    process.StartInfo.UseShellExecute = false;
+                    process.StartInfo.CreateNoWindow = true;
+                    process.StartInfo.RedirectStandardOutput = true;
+                    process.StartInfo.RedirectStandardError = true;
+
+                    process.Start();
+
+                    var outputTask = process.StandardOutput.ReadToEndAsync();
+                    var errorTask = process.StandardError.ReadToEndAsync();
+
+                    await process.WaitForExitAsync();
+
+                    var output = await outputTask;
+                    var error = await errorTask;
+
+                    if (process.ExitCode == 0 && !string.IsNullOrWhiteSpace(output))
+                    {
+                        // 출력 형식: "1920,1080"
+                        var parts = output.Trim().Split(',');
+                        if (parts.Length == 2 &&
+                            int.TryParse(parts[0], out int width) &&
+                            int.TryParse(parts[1], out int height))
+                        {
+                            Debug.WriteLine($"✅ FFprobe 해상도: {width}x{height}");
+                            return (width, height);
+                        }
+                    }
+                    else
+                    {
+                        Debug.WriteLine($"⚠️ FFprobe 실패: {error}");
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"⚠️ FFprobe 실행 오류: {ex.Message}");
+            }
+
+            return null;
+        }
+        /// <summary>
+        /// SMB 비디오의 메타데이터 검증 및 자동 보정
+        /// </summary>
+        private VideoEditMetadata ValidateAndCorrectMetadata(
+            VideoEditMetadata metadata,
+            int actualWidth,
+            int actualHeight)
+        {
+            int metaWidth = metadata.VideoWidth;
+            int metaHeight = metadata.VideoHeight;
+
+            // 해상도가 일치하면 보정 불필요
+            if (actualWidth == metaWidth && actualHeight == metaHeight)
+            {
+                Debug.WriteLine($"✅ 해상도 일치: {metaWidth}x{metaHeight}");
+                return metadata;
+            }
+
+            Debug.WriteLine($"⚠️ 해상도 불일치 감지!");
+            Debug.WriteLine($"   메타데이터: {metaWidth}x{metaHeight}");
+            Debug.WriteLine($"   실제 파일: {actualWidth}x{actualHeight}");
+
+            // 스케일 비율 계산
+            double scaleX = (double)actualWidth / metaWidth;
+            double scaleY = (double)actualHeight / metaHeight;
+
+            Debug.WriteLine($"   스케일 비율: X={scaleX:F4}, Y={scaleY:F4}");
+
+            // 비율 차이가 너무 크면 경고
+            if (scaleX > 2.5 || scaleY > 2.5 || scaleX < 0.4 || scaleY < 0.4)
+            {
+                Debug.WriteLine($"❌ 경고: 해상도 차이가 너무 큽니다! 인코딩 결과를 확인하세요.");
+            }
+
+            // 모든 세그먼트의 Center 좌표 보정
+            foreach (var segment in metadata.Segments)
+            {
+                int originalCenterX = segment.CenterX;
+                int originalCenterY = segment.CenterY;
+
+                segment.CenterX = (int)Math.Floor(segment.CenterX * scaleX);
+                segment.CenterY = (int)Math.Floor(segment.CenterY * scaleY);
+
+                Debug.WriteLine($"   세그먼트 보정: Center ({originalCenterX},{originalCenterY}) → ({segment.CenterX},{segment.CenterY})");
+            }
+
+            // 모든 그룹의 Width/Height 보정
+            foreach (var group in metadata.Groups.Values)
+            {
+                int originalWidth = group.Width;
+                int originalHeight = group.Height;
+
+                group.Width = (int)Math.Floor(group.Width * scaleX);
+                group.Height = (int)Math.Floor(group.Height * scaleY);
+
+                Debug.WriteLine($"   그룹 {group.Id} 보정: Size ({originalWidth}x{originalHeight}) → ({group.Width}x{group.Height})");
+            }
+
+            // 메타데이터의 원본 해상도 업데이트
+            metadata.VideoWidth = actualWidth;
+            metadata.VideoHeight = actualHeight;
+
+            Debug.WriteLine($"✅ 메타데이터 자동 보정 완료");
+
+            return metadata;
+        }
     }
 }

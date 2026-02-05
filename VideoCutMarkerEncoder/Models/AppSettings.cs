@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Text.Json.Serialization;
 
 namespace VideoCutMarkerEncoder.Models
 {
@@ -8,8 +9,11 @@ namespace VideoCutMarkerEncoder.Models
     public class AppSettings
     {
         // 폴더 설정
+        [JsonIgnore]
         public string ShareFolder { get; set; }
+        [JsonIgnore]
         public string OutputFolder { get; set; }
+        [JsonIgnore]
         public string FFmpegPath { get; set; }
 
         // 일반 설정

@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Diagnostics;
 using System.IO;
+using System.Linq;
 using System.Net;
 using System.Net.NetworkInformation;
 using System.Windows.Forms;
@@ -223,8 +224,28 @@ namespace VideoCutMarkerEncoder.Services
                     process.WaitForExit();
 
                     // 출력에서 설정된 ShareName이 있는지 확인
-                    // net share 출력 형식: "ShareName   C:\path   Remark"
-                    return output.Contains(_settingsManager.Settings.ShareName);
+                    string path = Application.StartupPath.TrimEnd('\\');
+                    if (output.Contains(path, StringComparison.OrdinalIgnoreCase))
+                    {
+                        // ⭐ 실제 공유 이름 찾아서 Settings에 업데이트
+                        foreach (string line in output.Split(new[] { '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries))
+                        {
+                            if (line.Contains(path, StringComparison.OrdinalIgnoreCase))
+                            {
+                                // 첫 번째 단어가 공유 이름
+                                string shareName = line.Trim().Split(new[] { ' ' }, StringSplitOptions.RemoveEmptyEntries)[0];
+
+                                // ⭐ Settings 업데이트
+                                _settingsManager.Settings.ShareName = shareName;
+
+                                return true;
+                            }
+                        }
+
+                        return true;
+                    }
+
+                    return false;
                 }
             }
             catch (Exception ex)
