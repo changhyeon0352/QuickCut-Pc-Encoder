@@ -32,7 +32,6 @@ namespace VideoCutMarkerEncoder
             if (settingsManager.IsFirstRun)
             {
                 ShowWelcomeGuide();
-                settingsManager.IsFirstRun = false;
                 settingsManager.SaveSettings();
             }
             
@@ -74,10 +73,10 @@ namespace VideoCutMarkerEncoder
 
             // 컨텍스트 메뉴 설정
             var contextMenu = new ContextMenuStrip();
-            contextMenu.Items.Add("열기", null, (s, e) => { this.Show(); this.WindowState = FormWindowState.Normal; });
-            contextMenu.Items.Add("설정", null, (s, e) => ShowSettings());
+            contextMenu.Items.Add("Open", null, (s, e) => { this.Show(); this.WindowState = FormWindowState.Normal; });
+            contextMenu.Items.Add("Settings", null, (s, e) => ShowSettings());
             contextMenu.Items.Add("-");
-            contextMenu.Items.Add("종료", null, (s, e) => Application.Exit());
+            contextMenu.Items.Add("Exit", null, (s, e) => Application.Exit());
 
             trayIcon.ContextMenuStrip = contextMenu;
             trayIcon.DoubleClick += (s, e) => { this.Show(); this.WindowState = FormWindowState.Normal; };
@@ -131,48 +130,11 @@ namespace VideoCutMarkerEncoder
 
         private void btnShareHelp_Click(object sender, EventArgs e)
         {
-            string helpMessage =
-                "📁 How to Set Up SMB Share\n\n" +
-                "1. Open Windows Explorer and navigate to:\n" +
-                $"   {settingsManager.Settings.ShareFolder}\n\n" +
-                "2. Right-click the folder → Select 'Properties'\n\n" +
-                "3. Go to 'Sharing' tab → Click 'Advanced Sharing' button\n\n" +
-                "4. Check 'Share this folder'\n\n" +
-                $"5. Share name: {settingsManager.Settings.ShareName}\n\n" +
-                "6. Click 'Permissions' → Grant 'Full Control' to Everyone\n\n" +
-                "7. Click OK → OK\n\n" +
-                "✅ After setup, the share status will automatically change to 'Active'.\n\n" +
-                "📌 Would you like to copy the folder path to clipboard?";
-
-            DialogResult result = MessageBox.Show(
-                helpMessage,
-                "SMB Share Setup Guide",
-                MessageBoxButtons.YesNo,
-                MessageBoxIcon.Information
-            );
-
-            if (result == DialogResult.Yes)
+            Process.Start(new ProcessStartInfo
             {
-                try
-                {
-                    Clipboard.SetText(settingsManager.Settings.ShareFolder);
-                    MessageBox.Show(
-                        "Folder path copied to clipboard!",
-                        "Copy Complete",
-                        MessageBoxButtons.OK,
-                        MessageBoxIcon.Information
-                    );
-                }
-                catch (Exception ex)
-                {
-                    MessageBox.Show(
-                        $"Failed to copy to clipboard: {ex.Message}",
-                        "Error",
-                        MessageBoxButtons.OK,
-                        MessageBoxIcon.Error
-                    );
-                }
-            }
+                FileName = "https://changhyeon0352.github.io/quickcutNetworkSettingsGuide/setup-guide.html",
+                UseShellExecute = true
+            });
         }
 
         private void btnSettings_Click(object sender, EventArgs e)
@@ -201,17 +163,17 @@ namespace VideoCutMarkerEncoder
                 try
                 {
                     // 메타데이터 파일 파싱
-                    var metadata = MetadataParser.ParseMetadataFile(e.FilePath);
+                    VideoEditMetadata metadata = MetadataParser.ParseMetadataFile(e.FilePath);
 
                     // 새 작업 생성
                     var task = new ProcessingTask
                     {
                         Metadata = metadata,
                         FilePath = e.FilePath,
-                        Status = "대기 중",
-                        Progress = 0
+                        Status = "Waiting",
+                        Progress = 0,
                     };
-
+                    
                     // 작업 목록에 추가
                     processingTasks.Add(task);
 

@@ -23,6 +23,7 @@ namespace VideoCutMarkerEncoder.Models
 
         // ⭐ 새로 추가: Share 폴더 자동 삭제 설정
         public bool AutoDeleteShareFiles { get; set; }
+        public bool AutoDeleteSmbSourceFile { get; set; } = false;
 
         // 인코딩 설정
         public string VideoCodec { get; set; }

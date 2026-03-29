@@ -16,6 +16,8 @@ namespace VideoCutMarkerEncoder.Models
         public string OutputSuffix { get; set; } = "";
         public bool EnableScaling { get; set; } = false;
         public string ScaleFilter { get; set; } = "";
+        public bool EnableWatermark { get; set; } = true;
+        public string WatermarkText { get; set; } = "";
 
         public string GetFFmpegVideoCodec()
         {

@@ -69,9 +69,9 @@
             lblStatus.ForeColor = Color.Red;
             lblStatus.Location = new Point(250, 20);
             lblStatus.Name = "lblStatus";
-            lblStatus.Size = new Size(58, 21);
+            lblStatus.Size = new Size(74, 21);
             lblStatus.TabIndex = 0;
-            lblStatus.Text = "중지됨";
+            lblStatus.Text = "Stopped";
             lblStatus.TextAlign = ContentAlignment.MiddleLeft;
             // 
             // btnShareHelp
@@ -128,7 +128,7 @@
             txtShareInfo.ReadOnly = true;
             txtShareInfo.Size = new Size(660, 105);
             txtShareInfo.TabIndex = 1;
-            txtShareInfo.Text = "서비스가 중지되었습니다. '시작' 버튼을 눌러 서비스를 시작하세요.";
+            txtShareInfo.Text = "Stopped. Click 'Start' to run.";
             // 
             // lblInfo
             // 
@@ -137,9 +137,9 @@
             lblInfo.Font = new Font("Segoe UI", 12F, FontStyle.Bold, GraphicsUnit.Point, 0);
             lblInfo.Location = new Point(12, 12);
             lblInfo.Name = "lblInfo";
-            lblInfo.Size = new Size(78, 21);
+            lblInfo.Size = new Size(111, 21);
             lblInfo.TabIndex = 0;
-            lblInfo.Text = "공유 정보";
+            lblInfo.Text = "Network Info";
             // 
             // panelTasks
             // 
@@ -160,7 +160,7 @@
             btnOpenOutput.Name = "btnOpenOutput";
             btnOpenOutput.Size = new Size(102, 23);
             btnOpenOutput.TabIndex = 2;
-            btnOpenOutput.Text = "출력 폴더 열기";
+            btnOpenOutput.Text = "Open Output Folder";
             btnOpenOutput.UseVisualStyleBackColor = true;
             btnOpenOutput.Click += btnOpenOutput_Click;
             // 
@@ -180,17 +180,17 @@
             // 
             // columnFileName
             // 
-            columnFileName.Text = "파일명";
+            columnFileName.Text = "FileName";
             columnFileName.Width = 300;
             // 
             // columnStatus
             // 
-            columnStatus.Text = "상태";
+            columnStatus.Text = "Status";
             columnStatus.Width = 200;
             // 
             // columnProgress
             // 
-            columnProgress.Text = "진행률";
+            columnProgress.Text = "Progress";
             columnProgress.Width = 100;
             // 
             // lblTasks
@@ -200,9 +200,9 @@
             lblTasks.Font = new Font("Segoe UI", 12F, FontStyle.Bold, GraphicsUnit.Point, 0);
             lblTasks.Location = new Point(12, 12);
             lblTasks.Name = "lblTasks";
-            lblTasks.Size = new Size(78, 21);
+            lblTasks.Size = new Size(43, 21);
             lblTasks.TabIndex = 0;
-            lblTasks.Text = "처리 작업";
+            lblTasks.Text = "Task";
             // 
             // MainForm
             // 

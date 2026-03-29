@@ -3,11 +3,13 @@ using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
 using System.Linq;
+using System.Net;
 using System.Text;
 using System.Text.Json;
 using System.Threading.Tasks;
 using System.Windows.Forms;
 using VideoCutMarkerEncoder.Models;
+using Microsoft.VisualBasic.FileIO;
 
 namespace VideoCutMarkerEncoder.Services
 {
@@ -20,7 +22,7 @@ namespace VideoCutMarkerEncoder.Services
         public string FilePath { get; set; }
         public string OutputPath { get; set; }
         public string TaskId { get; set; } = Guid.NewGuid().ToString();
-        public string Status { get; set; } = "대기 중";
+        public string Status { get; set; } = "Waiting";
         public int Progress { get; set; } = 0;
     }
 
@@ -48,11 +50,11 @@ namespace VideoCutMarkerEncoder.Services
     }
 
     /// <summary>
-    /// 메타데이터 파서 - VCM 파일 해석
+    /// 메타데이터 파서 - QC 파일 해석
     /// </summary>
     public static class MetadataParser
     {
-        public static VideoEditMetadata ParseMetadataFile(string filePath)
+        public static VideoEditMetadata  ParseMetadataFile(string filePath)
         {
             try
             {
@@ -69,8 +71,9 @@ namespace VideoCutMarkerEncoder.Services
 
                 // 비디오 파일 경로 확인 및 업데이트
                 FindVideoFilePath(metadata, filePath);
+              
 
-                return metadata;
+                return (metadata);
             }
             catch (Exception ex)
             {
@@ -123,8 +126,8 @@ namespace VideoCutMarkerEncoder.Services
             string directory = Path.GetDirectoryName(metadataFilePath);
             string videoFileName = metadata.VideoFileName;
 
-            // [VCM_xxxx] 태그 제거
-            videoFileName = System.Text.RegularExpressions.Regex.Replace(videoFileName, @"\[VCM_[a-zA-Z0-9]+\]", "");
+            // [QC_xxxx] 태그 제거
+            videoFileName = System.Text.RegularExpressions.Regex.Replace(videoFileName, @"\[QC_[a-zA-Z0-9]+\]", "");
 
             // 1. 동일한 이름으로 찾기
             string possiblePath = Path.Combine(directory, videoFileName);
@@ -202,6 +205,47 @@ namespace VideoCutMarkerEncoder.Services
 
             // FFmpeg가 없으면 다운로드 또는 오류 표시
             CheckFFmpegAvailability();
+        }
+
+        public string GetLocalPathFromUncPath(string uncPath)
+        {
+            try
+            {
+                var parts = uncPath.TrimStart('\\').Split('\\');
+                string shareName = parts[1];
+                string subPath = string.Join("\\", parts.Skip(2));
+
+                var process = new Process
+                {
+                    StartInfo = new ProcessStartInfo
+                    {
+                        FileName = "net",
+                        Arguments = $"share {shareName}",
+                        RedirectStandardOutput = true,
+                        UseShellExecute = false,
+                        CreateNoWindow = true
+                    }
+                };
+                process.Start();
+                string output = process.StandardOutput.ReadToEnd();
+                process.WaitForExit();
+
+                foreach (var line in output.Split('\n'))
+                {
+                    string trimmed = line.Trim();
+                    // 한/영 모두 대응
+                    if (trimmed.StartsWith("Path") || trimmed.StartsWith("경로"))
+                    {
+                        string localFolder = trimmed.Substring(trimmed.IndexOf(' ')).Trim().TrimEnd('\r');
+                        return Path.Combine(localFolder, subPath);
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"UNC → 로컬 경로 변환 실패: {ex.Message}");
+            }
+            return null;
         }
 
         /// <summary>
@@ -313,9 +357,30 @@ namespace VideoCutMarkerEncoder.Services
                     CleanupShareFiles(task);
                     Debug.WriteLine("자동 삭제 설정이 활성화되어 Share 폴더 파일이 삭제되었습니다.");
                 }
-                else
+                // SMB 원본 삭제 (별도 설정)
+                if (task.Metadata.VideoPath.StartsWith("\\\\") && _settingsManager.Settings.AutoDeleteSmbSourceFile)
                 {
-                   // Debug.WriteLine("자동 삭제 설정이 비활성화되어 Share 폴더 파일이 보존되었습니다.");
+                    try
+                    {
+                        string localPath = GetLocalPathFromUncPath(task.Metadata.VideoPath);
+                        if (localPath != null && File.Exists(localPath))
+                        {
+                            Microsoft.VisualBasic.FileIO.FileSystem.DeleteFile(
+                                localPath,
+                                Microsoft.VisualBasic.FileIO.UIOption.OnlyErrorDialogs,
+                                Microsoft.VisualBasic.FileIO.RecycleOption.SendToRecycleBin);
+                            Debug.WriteLine($"SMB 원본 휴지통 이동: {localPath}");
+                        }
+                        else
+                        {
+                            Debug.WriteLine($"로컬 경로 변환 실패 또는 파일 없음: {task.Metadata.VideoPath}");
+                        }
+                        Debug.WriteLine($"SMB 원본 휴지통 이동: {task.Metadata.VideoPath}");
+                    }
+                    catch (Exception ex)
+                    {
+                        Debug.WriteLine($"SMB 원본 휴지통 이동 실패: {ex.Message}");
+                    }
                 }
             }
             catch (Exception ex)
@@ -381,48 +446,45 @@ namespace VideoCutMarkerEncoder.Services
 
                 if (isSmbVideo)
                 {
-                    // SMB 비디오: 원본과 같은 폴더에 출력
-                    // ✨ 실제 해상도 확인
-                    var resolution = await GetActualResolutionAsync(metadata.VideoPath);
+                    string localVideoPath = GetLocalPathFromUncPath(metadata.VideoPath);
+                    if (localVideoPath == null || !File.Exists(localVideoPath))
+                        throw new Exception($"로컬 경로 변환 실패: {metadata.VideoPath}");
 
+                    metadata.VideoPath = localVideoPath;
+                    outputFolder = Path.GetDirectoryName(localVideoPath);
+
+                    var resolution = await GetActualResolutionAsync(metadata.VideoPath);
                     if (resolution.HasValue)
                     {
                         int actualWidth = resolution.Value.width;
                         int actualHeight = resolution.Value.height;
-                        int metaWidth = metadata.VideoWidth;
-                        int metaHeight = metadata.VideoHeight;
-
-                        // ✨ 해상도 불일치 시 보정
-                        if (actualWidth != metaWidth || actualHeight != metaHeight)
-                        {
+                        if (actualWidth != metadata.VideoWidth || actualHeight != metadata.VideoHeight)
                             metadata = ValidateAndCorrectMetadata(metadata, actualWidth, actualHeight);
-
-                        }
                     }
-
-                    outputFolder = Path.GetDirectoryName(metadata.VideoPath);
+                    Debug.WriteLine($"SMB 비디오 - 로컬 경로: {metadata.VideoPath}");
                 }
                 else
                 {
-                    // 일반 비디오: Output 폴더에 출력
                     outputFolder = _settingsManager.Settings.OutputFolder;
                     Debug.WriteLine($"일반 비디오 - 출력 폴더: {outputFolder}");
                 }
+
+                string resultPath;
                 if (metadata.OutputMode == OutputMode.Merge)
                 {
-                    return await ProcessMergeMode(metadata, task, outputFolder);
+                    resultPath = await ProcessMergeMode(metadata, task, outputFolder);
                 }
                 else
                 {
-                    return await ProcessSeparateMode(metadata, task, outputFolder);
+                    resultPath = await ProcessSeparateMode(metadata, task, outputFolder);
                 }
+                return resultPath;
             }
             catch (Exception ex)
             {
                 throw new Exception($"비디오 처리 실패: {ex.Message}", ex);
             }
         }
-
         /// <summary>
         /// Separate 모드 처리 (기존 방식 + 회전 추가)
         /// </summary>
@@ -672,6 +734,9 @@ namespace VideoCutMarkerEncoder.Services
                     System.Diagnostics.Debug.WriteLine($"최적화된 스케일링 필터: {optimizedScaleFilter}");
                 }
             }
+            // 4. 워터마크
+            if (metadata.EncodingSettings?.EnableWatermark != false)
+                filters.Add(GetWatermarkFilter(metadata.EncodingSettings?.WatermarkText ?? "QuickCut-PC"));
             // 필터 체인 적용
             if (filters.Count > 0)
             {
@@ -795,7 +860,9 @@ namespace VideoCutMarkerEncoder.Services
             {
                 filters.Add(scaleAndPadFilter);
             }
-
+            // 4. 워터마크
+            if (metadata.EncodingSettings?.EnableWatermark != false)
+                filters.Add(GetWatermarkFilter(metadata.EncodingSettings?.WatermarkText ?? "QuickCut-PC"));
             // 필터 체인 적용
             if (filters.Count > 0)
             {
@@ -823,7 +890,13 @@ namespace VideoCutMarkerEncoder.Services
                 _ => ""  // 회전 없음
             };
         }
-
+        /// <summary>
+        /// 워터마크 필터 문자열 생성
+        /// </summary>
+        private string GetWatermarkFilter(string text)
+        {
+            return $"drawtext=text='{text}':x=w-tw-10:y=h-th-10:fontsize=16:fontcolor=white@0.7:borderw=2:bordercolor=black@0.6";
+        }
         /// <summary>
         /// 스케일링 + 패딩 필터 생성 (비율 유지)
         /// </summary>
@@ -1245,5 +1318,9 @@ namespace VideoCutMarkerEncoder.Services
 
             return metadata;
         }
+
+        
+
+        
     }
 }

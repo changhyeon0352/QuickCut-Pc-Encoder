@@ -60,7 +60,7 @@ namespace VideoCutMarkerEncoder.Services
                 _watcher = new FileSystemWatcher(_settingsManager.Settings.ShareFolder)
                 {
                     NotifyFilter = NotifyFilters.FileName | NotifyFilters.LastWrite,
-                    Filter = "*.json", // VCM 메타데이터 파일만 감시
+                    Filter = "*.json", // QC 메타데이터 파일만 감시
                     EnableRaisingEvents = true
                 };
                 _watcher.EnableRaisingEvents = true;
@@ -88,9 +88,9 @@ namespace VideoCutMarkerEncoder.Services
                 if (jsonFiles.Length > 0)
                 {
                     // 사용자 확인
-                    string message = $"Share 폴더에 {jsonFiles.Length}개의 대기 중인 파일이 있습니다.\n지금 모든 파일을 인코딩하시겠습니까?";
-
-                    DialogResult result = MessageBox.Show(message, "대기 중인 파일 발견",
+                    string message = $"There are {jsonFiles.Length} file(s) waiting to encode.\nStart now?";
+                    
+                    DialogResult result = MessageBox.Show(message, "Pending Files Found",
                         MessageBoxButtons.YesNo, MessageBoxIcon.Question);
 
                     if (result == DialogResult.Yes)
@@ -143,7 +143,7 @@ namespace VideoCutMarkerEncoder.Services
             catch (Exception ex)
             {
                 Debug.WriteLine($"IP 주소 가져오기 오류: {ex.Message}");
-                return "알 수 없음";
+                return "Unknown";
             }
         }
 

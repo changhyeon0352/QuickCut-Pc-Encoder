@@ -33,6 +33,7 @@ namespace VideoCutMarkerEncoder
 
             // ⭐ 자동 삭제 설정
             chkAutoDeleteShareFiles.Checked = _originalSettings.AutoDeleteShareFiles;
+            chkAutoDeleteSmbSourceFile.Checked = _originalSettings.AutoDeleteSmbSourceFile;
         }
 
 
@@ -70,7 +71,7 @@ namespace VideoCutMarkerEncoder
 
                 // ⭐ 자동 삭제 설정 저장
                 _settingsManager.Settings.AutoDeleteShareFiles = chkAutoDeleteShareFiles.Checked;
-
+                _settingsManager.Settings.AutoDeleteSmbSourceFile = chkAutoDeleteSmbSourceFile.Checked;
                 _settingsManager.SaveSettings();
 
                 DialogResult = DialogResult.OK;
@@ -78,8 +79,8 @@ namespace VideoCutMarkerEncoder
             }
             catch (Exception ex)
             {
-                MessageBox.Show($"설정 저장 중 오류가 발생했습니다:\n\n{ex.Message}",
-                    "오류", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                MessageBox.Show($"Could not save settings:\n\n{ex.Message}",
+                    "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
             }
         }
 
@@ -92,8 +93,8 @@ namespace VideoCutMarkerEncoder
         private void btnResetDefault_Click(object sender, EventArgs e)
         {
             DialogResult result = MessageBox.Show(
-                "모든 설정을 기본값으로 초기화하시겠습니까?",
-                "설정 초기화",
+                "Reset all settings to default?",
+                "Reset settings",
                 MessageBoxButtons.YesNo,
                 MessageBoxIcon.Question
             );
@@ -109,6 +110,7 @@ namespace VideoCutMarkerEncoder
 
                 // ⭐ 자동 삭제도 기본값으로
                 chkAutoDeleteShareFiles.Checked = true;
+                chkAutoDeleteSmbSourceFile.Checked = false;
             }
         }
 
@@ -118,6 +120,7 @@ namespace VideoCutMarkerEncoder
             this.grpGeneral = new System.Windows.Forms.GroupBox();
             this.btnFFmpegHelp = new System.Windows.Forms.Button();
             this.chkAutoDeleteShareFiles = new System.Windows.Forms.CheckBox(); // ⭐ 새로 추가
+            this.chkAutoDeleteSmbSourceFile = new System.Windows.Forms.CheckBox();
             this.chkNotifyOnComplete = new System.Windows.Forms.CheckBox();
             this.chkMinimizeToTray = new System.Windows.Forms.CheckBox();
             this.txtShareName = new System.Windows.Forms.TextBox();
@@ -133,16 +136,17 @@ namespace VideoCutMarkerEncoder
             // 
             this.grpGeneral.Controls.Add(this.btnFFmpegHelp);
             this.grpGeneral.Controls.Add(this.chkAutoDeleteShareFiles); // ⭐ 새로 추가
+            this.grpGeneral.Controls.Add(this.chkAutoDeleteSmbSourceFile);
             this.grpGeneral.Controls.Add(this.chkNotifyOnComplete);
             this.grpGeneral.Controls.Add(this.chkMinimizeToTray);
             this.grpGeneral.Controls.Add(this.txtShareName);
             this.grpGeneral.Controls.Add(this.lblShareName);
             this.grpGeneral.Location = new System.Drawing.Point(12, 12);
             this.grpGeneral.Name = "grpGeneral";
-            this.grpGeneral.Size = new System.Drawing.Size(460, 132); // ⭐ 높이 증가
+            this.grpGeneral.Size = new System.Drawing.Size(460, 155); // ⭐ 높이 증가
             this.grpGeneral.TabIndex = 0;
             this.grpGeneral.TabStop = false;
-            this.grpGeneral.Text = "일반 설정";
+            this.grpGeneral.Text = "General";
             // 
             // btnFFmpegHelp
             // 
@@ -150,7 +154,7 @@ namespace VideoCutMarkerEncoder
             this.btnFFmpegHelp.Name = "btnFFmpegHelp";
             this.btnFFmpegHelp.Size = new System.Drawing.Size(75, 23);
             this.btnFFmpegHelp.TabIndex = 4;
-            this.btnFFmpegHelp.Text = "FFmpeg 도움말";
+            this.btnFFmpegHelp.Text = "FFmpeg Guide";
             this.btnFFmpegHelp.UseVisualStyleBackColor = true;
             this.btnFFmpegHelp.Click += new System.EventHandler(this.btnFFmpegHelp_Click);
             // 
@@ -161,8 +165,18 @@ namespace VideoCutMarkerEncoder
             this.chkAutoDeleteShareFiles.Name = "chkAutoDeleteShareFiles";
             this.chkAutoDeleteShareFiles.Size = new System.Drawing.Size(250, 19);
             this.chkAutoDeleteShareFiles.TabIndex = 5;
-            this.chkAutoDeleteShareFiles.Text = "인코딩 완료 후 Share 폴더 파일 자동 삭제";
+            this.chkAutoDeleteShareFiles.Text = "Auto delete files in share folder after encoding";
             this.chkAutoDeleteShareFiles.UseVisualStyleBackColor = true;
+            //
+            // smb인코딩한 파일 자동 휴지통
+            //
+            this.chkAutoDeleteSmbSourceFile.AutoSize = true;
+            this.chkAutoDeleteSmbSourceFile.Location = new System.Drawing.Point(15, 120);
+            this.chkAutoDeleteSmbSourceFile.Name = "chkAutoDeleteSmbSourceFile";
+            this.chkAutoDeleteSmbSourceFile.Size = new System.Drawing.Size(250, 19);
+            this.chkAutoDeleteSmbSourceFile.TabIndex = 6;
+            this.chkAutoDeleteSmbSourceFile.Text = "Auto delete SMB source file after encoding (Recycle Bin)";
+            this.chkAutoDeleteSmbSourceFile.UseVisualStyleBackColor = true;
             // 
             // chkNotifyOnComplete
             // 
@@ -171,7 +185,7 @@ namespace VideoCutMarkerEncoder
             this.chkNotifyOnComplete.Name = "chkNotifyOnComplete";
             this.chkNotifyOnComplete.Size = new System.Drawing.Size(106, 19);
             this.chkNotifyOnComplete.TabIndex = 3;
-            this.chkNotifyOnComplete.Text = "완료 시 알림";
+            this.chkNotifyOnComplete.Text = "Notify when done";
             this.chkNotifyOnComplete.UseVisualStyleBackColor = true;
             // 
             // chkMinimizeToTray
@@ -181,7 +195,7 @@ namespace VideoCutMarkerEncoder
             this.chkMinimizeToTray.Name = "chkMinimizeToTray";
             this.chkMinimizeToTray.Size = new System.Drawing.Size(158, 19);
             this.chkMinimizeToTray.TabIndex = 2;
-            this.chkMinimizeToTray.Text = "트레이로 최소화";
+            this.chkMinimizeToTray.Text = "Minimize to tray";
             this.chkMinimizeToTray.UseVisualStyleBackColor = true;
             // 
             // txtShareName
@@ -199,7 +213,7 @@ namespace VideoCutMarkerEncoder
             this.lblShareName.Name = "lblShareName";
             this.lblShareName.Size = new System.Drawing.Size(134, 15);
             this.lblShareName.TabIndex = 0;
-            this.lblShareName.Text = "SMB 공유 이름:";
+            this.lblShareName.Text = "SMB Share Name:";
             // 
             // btnOK
             // 
@@ -262,6 +276,7 @@ namespace VideoCutMarkerEncoder
         private System.Windows.Forms.CheckBox chkMinimizeToTray;
         private System.Windows.Forms.CheckBox chkNotifyOnComplete;
         private System.Windows.Forms.CheckBox chkAutoDeleteShareFiles; // ⭐ 새로 추가
+        private System.Windows.Forms.CheckBox chkAutoDeleteSmbSourceFile;
         private System.Windows.Forms.Button btnFFmpegHelp;
     }
 }
