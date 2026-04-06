@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Diagnostics;
 using System.IO;
 using System.Windows.Forms;
 using VideoCutMarkerEncoder.Models;
@@ -40,19 +41,22 @@ namespace VideoCutMarkerEncoder
         private void btnFFmpegHelp_Click(object sender, EventArgs e)
         {
             string appPath = Application.StartupPath;
-            string ffmpegPath = Path.Combine(appPath, "FFmpeg", "ffmpeg.exe");
+            string ffmpegPath = Path.Combine(appPath, "FFmpeg");
 
+            Process.Start(new ProcessStartInfo
+            {
+                FileName = "https://www.gyan.dev/ffmpeg/builds/",
+                UseShellExecute = true
+            });
             MessageBox.Show(
-                "FFmpeg 설치 방법:\n\n" +
-                "1. https://ffmpeg.org/download.html 에서 FFmpeg 다운로드\n" +
-                "   - Windows 사용자: 'Windows builds from gyan.dev' 링크 클릭\n" +
-                "   - 'ffmpeg-release-essentials.zip' 파일 다운로드\n\n" +
-                "2. 다운로드한 ZIP 파일 압축 풀기\n\n" +
-                "3. bin 폴더 안의 ffmpeg.exe 파일을 찾아\n" +
-                $"   {ffmpegPath} 경로에 복사\n\n" +
-                "FFmpeg는 GPL 및 LGPL 라이선스 하에 제공됩니다.\n" +
-                "자세한 정보: https://ffmpeg.org/legal.html",
-                "FFmpeg 설치 안내",
+                "FFmpeg is required to run this application.\n\n" +
+                "How to install:\n\n" +
+                "1. Download 'ffmpeg-release-essentials.zip' from the page that just opened\n\n" +
+                "2. Extract the ZIP file\n\n" +
+                "3. Copy all files from the 'bin' folder to:\n" +
+                $"   {ffmpegPath}\n\n" +
+                "Restart the application after copying the files.",
+                "FFmpeg Not Found",
                 MessageBoxButtons.OK,
                 MessageBoxIcon.Information
             );

@@ -70,32 +70,27 @@ namespace VideoCutMarker.Desktop
         /// </summary>
         private static void CheckFFmpeg(string appPath)
         {
-            string ffmpegPath = Path.Combine(appPath, "FFmpeg", "ffmpeg.exe");
+            string ffmpegPath = Path.Combine(appPath, "FFmpeg");
 
             if (!File.Exists(ffmpegPath))
             {
-                DialogResult result = MessageBox.Show(
-                    "비디오 처리를 위해 FFmpeg가 필요합니다.\n\n" +
-                    "다음 단계에 따라 FFmpeg를 설치하세요:\n\n" +
-                    "1. https://ffmpeg.org/download.html 에서 FFmpeg 다운로드\n" +
-                    "2. 다운로드한 파일의 압축을 풀기\n" +
-                    "3. ffmpeg.exe 파일을 찾아 다음 경로에 복사:\n" +
-                    $"   {ffmpegPath}\n\n" +
-                    "FFmpeg 공식 웹사이트를 지금 방문하시겠습니까?",
-                    "FFmpeg 필요",
-                    MessageBoxButtons.YesNo,
-                    MessageBoxIcon.Question
-                );
-
-                if (result == DialogResult.Yes)
+                Process.Start(new ProcessStartInfo
                 {
-                    // 웹 브라우저로 FFmpeg 다운로드 페이지 열기
-                    Process.Start(new ProcessStartInfo
-                    {
-                        FileName = "https://ffmpeg.org/download.html",
-                        UseShellExecute = true
-                    });
-                }
+                    FileName = "https://www.gyan.dev/ffmpeg/builds/",
+                    UseShellExecute = true
+                });
+                MessageBox.Show(
+                    "FFmpeg is required to run this application.\n\n" +
+                    "How to install:\n\n" +
+                    "1. Download 'ffmpeg-release-essentials.zip' from the page that just opened\n\n" +
+                    "2. Extract the ZIP file\n\n" +
+                    "3. Copy all files from the 'bin' folder to:\n" +
+                    $"   {ffmpegPath}\n\n" +
+                    "Restart the application after copying the files.",
+                    "FFmpeg Not Found",
+                    MessageBoxButtons.OK,
+                    MessageBoxIcon.Information
+                );
             }
         }
     }

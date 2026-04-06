@@ -245,7 +245,7 @@ namespace VideoCutMarkerEncoder
                 if (task != null)
                 {
                     // 작업 상태 업데이트
-                    task.Status = e.Success ? "완료" : "실패";
+                    task.Status = e.Success ? "Complete" : "Failed";
                     task.Progress = e.Success ? 100 : 0;
                     task.OutputPath = e.OutputFilePath;
 
@@ -278,11 +278,11 @@ namespace VideoCutMarkerEncoder
                     item.SubItems[2].Text = $"{task.Progress}%";
 
                     // 색상 설정
-                    if (task.Status == "완료")
+                    if (task.Status == "Complete")
                     {
                         item.ForeColor = Color.Green;
                     }
-                    else if (task.Status == "실패")
+                    else if (task.Status == "Failed")
                     {
                         item.ForeColor = Color.Red;
                     }

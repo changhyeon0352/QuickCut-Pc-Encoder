@@ -339,7 +339,7 @@ namespace VideoCutMarkerEncoder.Services
                 string outputPath = await ProcessVideoAsync(task);
 
                 // 작업 완료 이벤트 발생
-                task.Status = "완료";
+                task.Status = "Complete";
                 task.Progress = 100;
                 task.OutputPath = outputPath;
 
@@ -622,12 +622,12 @@ namespace VideoCutMarkerEncoder.Services
 
                 // 진행률 업데이트
                 int progress = (i * 80 / allSegments.Count); // 80%까지 개별 세그먼트 처리
-                UpdateProgress(task, progress, $"세그먼트 {i + 1}/{allSegments.Count} 처리 중");
+                UpdateProgress(task, progress, $"segment {i + 1}/{allSegments.Count} processing");
 
                 // FFmpeg 실행
                 bool success = await RunFFmpegProcessAsync(ffmpegArgs);
                 if (!success)
-                    throw new Exception($"세그먼트 {i + 1} 처리 실패");
+                    throw new Exception($"segment {i + 1} process fail");
             }
 
             // 최종 병합
