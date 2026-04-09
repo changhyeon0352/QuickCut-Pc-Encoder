@@ -56,7 +56,7 @@ namespace VideoCutMarkerEncoder
                 "3. Copy all files from the 'bin' folder to:\n" +
                 $"   {ffmpegPath}\n\n" +
                 "Restart the application after copying the files.",
-                "FFmpeg Not Found",
+                "FFmpeg Setup",
                 MessageBoxButtons.OK,
                 MessageBoxIcon.Information
             );

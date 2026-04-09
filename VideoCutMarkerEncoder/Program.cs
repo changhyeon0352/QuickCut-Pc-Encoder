@@ -70,7 +70,7 @@ namespace VideoCutMarker.Desktop
         /// </summary>
         private static void CheckFFmpeg(string appPath)
         {
-            string ffmpegPath = Path.Combine(appPath, "FFmpeg");
+            string ffmpegPath = Path.Combine(appPath, "FFmpeg", "ffmpeg.exe");
 
             if (!File.Exists(ffmpegPath))
             {
@@ -85,7 +85,7 @@ namespace VideoCutMarker.Desktop
                     "1. Download 'ffmpeg-release-essentials.zip' from the page that just opened\n\n" +
                     "2. Extract the ZIP file\n\n" +
                     "3. Copy all files from the 'bin' folder to:\n" +
-                    $"   {ffmpegPath}\n\n" +
+                    $"   {Path.GetDirectoryName(ffmpegPath)}\n\n" +
                     "Restart the application after copying the files.",
                     "FFmpeg Not Found",
                     MessageBoxButtons.OK,
