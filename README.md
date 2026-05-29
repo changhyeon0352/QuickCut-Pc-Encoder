@@ -39,8 +39,8 @@ For SMB connection setup, refer to the [Setup Guide](https://changhyeon0352.gith
 
 The SHA256 hash shown in the Releases page matches the hash in the VirusTotal results below, confirming that the file has not been modified.
 
-- SHA256: `fe4ed3e638986a25db05fa3827a497f9a2545938f3c697c88da2f2e6009f70b0`
-- [VirusTotal scan results (0/66)](https://www.virustotal.com/gui/file/fe4ed3e638986a25db05fa3827a497f9a2545938f3c697c88da2f2e6009f70b0)
+- SHA256: `29cb2eb2320e64621ed16434e4b064f7da28d3278edcda4bb4d7c5199771a757`
+- [VirusTotal scan results (0/66)](https://www.virustotal.com/gui/file/29cb2eb2320e64621ed16434e4b064f7da28d3278edcda4bb4d7c5199771a757)
 
 ## License
 
