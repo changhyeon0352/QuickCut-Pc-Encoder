@@ -24,6 +24,11 @@ namespace VideoCutMarkerEncoder.Services
         public string TaskId { get; set; } = Guid.NewGuid().ToString();
         public string Status { get; set; } = "Waiting";
         public int Progress { get; set; } = 0;
+        /// <summary>
+        /// 현재 처리 중인 세그먼트 번호 / 전체 세그먼트 개수 (UI에 "1/3" 형태로 표시, 합치기는 제외)
+        /// </summary>
+        public int CurrentSegment { get; set; } = 0;
+        public int TotalSegments { get; set; } = 0;
     }
 
     /// <summary>
@@ -35,6 +40,8 @@ namespace VideoCutMarkerEncoder.Services
         public string TaskId { get; set; }
         public int Progress { get; set; }
         public string Status { get; set; }
+        public int CurrentSegment { get; set; }
+        public int TotalSegments { get; set; }
     }
 
     /// <summary>
@@ -88,22 +95,7 @@ namespace VideoCutMarkerEncoder.Services
             {
                 Debug.WriteLine($"SMB 비디오 감지: {metadata.VideoPath}");
 
-                // SMB 경로를 Windows UNC 경로로 변환
-                // smb://192.168.50.123/Downloads/video.mp4
-                // → \\192.168.50.123\Downloads\video.mp4
-                string normalizedUri = metadata.VideoPath;
-                if (normalizedUri.StartsWith("smb:/") && !normalizedUri.StartsWith("smb://"))
-                {
-                    normalizedUri = normalizedUri.Replace("smb:/", "smb://");
-                    Debug.WriteLine($"URI 정규화: {normalizedUri}");
-                }
-
-                Uri uri = new Uri(normalizedUri);
-                string host = uri.Host; // "192.168.50.123"
-                string path = Uri.UnescapeDataString(uri.AbsolutePath.TrimStart('/')); // "Downloads/video.mp4"
-
-                string windowsPath = $"\\\\{host}\\{path.Replace('/', '\\')}";
-
+                string windowsPath = ConvertSmbUriToWindowsPath(metadata.VideoPath);
                 Debug.WriteLine($"Windows UNC 경로: {windowsPath}");
 
                 if (File.Exists(windowsPath))
@@ -112,10 +104,23 @@ namespace VideoCutMarkerEncoder.Services
                     Debug.WriteLine("✅ SMB 비디오 파일 확인됨");
                     return;
                 }
-                else
+
+                // VideoPath로 못 찾으면 OriginalVideoPath로 재시도
+                // (모바일에서 표시 이름을 바꿔서 VideoPath의 파일명이 실제 파일명과 달라진 경우 대비)
+                if (!string.IsNullOrEmpty(metadata.OriginalVideoPath) && metadata.OriginalVideoPath.StartsWith("smb:/"))
                 {
-                    throw new FileNotFoundException($"SMB 경로에서 비디오를 찾을 수 없습니다: {windowsPath}");
+                    string originalWindowsPath = ConvertSmbUriToWindowsPath(metadata.OriginalVideoPath);
+                    Debug.WriteLine($"VideoPath에서 못 찾음 - OriginalVideoPath로 재시도: {originalWindowsPath}");
+
+                    if (File.Exists(originalWindowsPath))
+                    {
+                        metadata.VideoPath = originalWindowsPath;
+                        Debug.WriteLine("✅ OriginalVideoPath 기준 SMB 비디오 파일 확인됨");
+                        return;
+                    }
                 }
+
+                throw new FileNotFoundException($"SMB 경로에서 비디오를 찾을 수 없습니다: {windowsPath}");
             }
             // 이미 유효한 경로가 있고 파일이 존재하면 사용
             if (!string.IsNullOrEmpty(metadata.VideoPath) && File.Exists(metadata.VideoPath))
@@ -164,6 +169,25 @@ namespace VideoCutMarkerEncoder.Services
             }
 
             throw new FileNotFoundException($"비디오 파일을 찾을 수 없습니다: {videoFileName}");
+        }
+
+        /// <summary>
+        /// SMB URI를 Windows UNC 경로로 변환
+        /// smb://192.168.50.123/Downloads/video.mp4 → \\192.168.50.123\Downloads\video.mp4
+        /// </summary>
+        private static string ConvertSmbUriToWindowsPath(string smbUri)
+        {
+            string normalizedUri = smbUri;
+            if (normalizedUri.StartsWith("smb:/") && !normalizedUri.StartsWith("smb://"))
+            {
+                normalizedUri = normalizedUri.Replace("smb:/", "smb://");
+            }
+
+            Uri uri = new Uri(normalizedUri);
+            string host = uri.Host; // "192.168.50.123"
+            string path = Uri.UnescapeDataString(uri.AbsolutePath.TrimStart('/')); // "Downloads/video.mp4"
+
+            return $"\\\\{host}\\{path.Replace('/', '\\')}";
         }
 
         private static bool IsVideoFile(string extension)
@@ -335,6 +359,10 @@ namespace VideoCutMarkerEncoder.Services
                     throw new FileNotFoundException($"비디오 파일을 찾을 수 없습니다: {task.Metadata.VideoPath}");
                 }
 
+                // ⭐ ProcessVideoAsync 내부에서 SMB UNC 경로를 로컬 경로로 덮어쓰기 때문에,
+                // SMB 원본 삭제 판별을 위해 처리 전 원본 경로를 미리 캡처해둔다
+                string originalVideoPath = task.Metadata.VideoPath;
+
                 // 비디오 처리
                 string outputPath = await ProcessVideoAsync(task);
 
@@ -351,19 +379,22 @@ namespace VideoCutMarkerEncoder.Services
                     Success = true
                 });
 
-                // ⭐ 설정에 따라 조건부 Share 폴더 정리
+                // ⭐ 메타데이터 파일은 설정과 무관하게 항상 삭제
+                DeleteMetadataFile(task);
+
+                // ⭐ 설정에 따라 조건부로 Share 폴더의 비디오 파일 정리
                 if (_settingsManager.Settings.AutoDeleteShareFiles)
                 {
-                    CleanupShareFiles(task);
-                    Debug.WriteLine("자동 삭제 설정이 활성화되어 Share 폴더 파일이 삭제되었습니다.");
+                    CleanupShareVideoFile(task);
+                    Debug.WriteLine("자동 삭제 설정이 활성화되어 Share 폴더 비디오 파일이 삭제되었습니다.");
                 }
-                // SMB 원본 삭제 (별도 설정)
-                if (task.Metadata.VideoPath.StartsWith("\\\\") && _settingsManager.Settings.AutoDeleteSmbSourceFile)
+                // SMB 원본 삭제 (별도 설정) - originalVideoPath로 판별 (ProcessVideoAsync가 이미 로컬 경로로 변환해둠)
+                if (originalVideoPath.StartsWith("\\\\") && _settingsManager.Settings.AutoDeleteSmbSourceFile)
                 {
                     try
                     {
-                        string localPath = GetLocalPathFromUncPath(task.Metadata.VideoPath);
-                        if (localPath != null && File.Exists(localPath))
+                        string localPath = task.Metadata.VideoPath;
+                        if (File.Exists(localPath))
                         {
                             Microsoft.VisualBasic.FileIO.FileSystem.DeleteFile(
                                 localPath,
@@ -373,9 +404,8 @@ namespace VideoCutMarkerEncoder.Services
                         }
                         else
                         {
-                            Debug.WriteLine($"로컬 경로 변환 실패 또는 파일 없음: {task.Metadata.VideoPath}");
+                            Debug.WriteLine($"로컬 경로 변환된 파일 없음: {localPath}");
                         }
-                        Debug.WriteLine($"SMB 원본 휴지통 이동: {task.Metadata.VideoPath}");
                     }
                     catch (Exception ex)
                     {
@@ -404,17 +434,28 @@ namespace VideoCutMarkerEncoder.Services
             ProcessNextTask();
         }
 
-        private void CleanupShareFiles(ProcessingTask task)
+        private void DeleteMetadataFile(ProcessingTask task)
         {
             try
             {
-                // 메타데이터 파일 삭제
                 if (File.Exists(task.FilePath))
                 {
                     File.Delete(task.FilePath);
+                    Debug.WriteLine($"메타데이터 파일 삭제 완료: {task.FilePath}");
                 }
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"메타데이터 파일 삭제 오류: {ex.Message}");
+                // 정리 실패해도 메인 작업에는 영향 없음
+            }
+        }
 
-                // 비디오 파일도 Share 폴더에 있다면 삭제
+        private void CleanupShareVideoFile(ProcessingTask task)
+        {
+            try
+            {
+                // 비디오 파일이 Share 폴더에 있다면 삭제
                 string videoFileName = Path.GetFileName(task.Metadata.VideoPath);
                 string shareVideoPath = Path.Combine(_settingsManager.Settings.ShareFolder, videoFileName);
 
@@ -423,7 +464,7 @@ namespace VideoCutMarkerEncoder.Services
                     File.Delete(shareVideoPath);
                 }
 
-                Debug.WriteLine($"Share 폴더 정리 완료: {task.Metadata.VideoFileName}");
+                Debug.WriteLine($"Share 폴더 비디오 정리 완료: {task.Metadata.VideoFileName}");
             }
             catch (Exception ex)
             {
@@ -493,7 +534,9 @@ namespace VideoCutMarkerEncoder.Services
             var outputFiles = new List<string>();
             var groupSegments = metadata.Segments.GroupBy(s => s.GroupId).ToList();
             int totalGroups = groupSegments.Count();
-            int currentGroupIndex = 0;
+
+            // 구간 길이가 0(영상 전체)인 세그먼트의 실제 길이 계산용
+            double? videoDuration = await GetVideoDurationAsync(metadata.VideoPath);
 
             foreach (var groupData in groupSegments)
             {
@@ -527,14 +570,22 @@ namespace VideoCutMarkerEncoder.Services
                     string ffmpegArgs = BuildFFmpegCommand(metadata, startTime, endTime,
                         cropX, cropY, groupInfo, segmentFilePath);
 
-                    // 진행률 계산
-                    int overallProgress = (currentGroupIndex * 100 / totalGroups) +
-                        ((i * 100 / totalGroups) / segments.Count);
+                    // 세그먼트 실제 길이 (StartTime==EndTime이면 영상 끝까지)
+                    double segmentDuration = endTime > startTime
+                        ? endTime - startTime
+                        : (videoDuration ?? 0) - startTime;
 
-                    // FFmpeg 실행
-                    UpdateProgress(task, overallProgress,
-                        $"그룹 {groupId} - 세그먼트 {i + 1}/{segments.Count} 인코딩 중");
-                    bool success = await RunFFmpegProcessAsync(ffmpegArgs);
+                    UpdateProgress(task, 0,
+                        $"그룹 {groupId} - 세그먼트 {i + 1}/{segments.Count} 인코딩 중",
+                        currentSegment: i + 1, totalSegments: segments.Count);
+
+                    // FFmpeg 실행 (실시간 진행률 반영) - Status에는 현재 세그먼트 인코딩 %, Progress에는 "현재/전체" 세그먼트 개수
+                    bool success = await RunFFmpegProcessAsync(ffmpegArgs, segmentDuration, fraction =>
+                    {
+                        UpdateProgress(task, (int)(fraction * 100),
+                            $"그룹 {groupId} - 세그먼트 {i + 1}/{segments.Count} 인코딩 중 ({(int)(fraction * 100)}%)",
+                            currentSegment: i + 1, totalSegments: segments.Count);
+                    });
 
                     if (!success)
                         throw new Exception($"그룹 {groupId} 세그먼트 {i + 1} 처리 실패");
@@ -553,7 +604,6 @@ namespace VideoCutMarkerEncoder.Services
                 // 그룹 내 세그먼트 병합 (필요시)
                 await MergeSegmentsIfNeeded(segmentFiles, outputPath, task, groupId);
                 outputFiles.Add(outputPath);
-                currentGroupIndex++;
             }
 
             UpdateProgress(task, 100, $"모든 그룹 처리 완료 ({outputFiles.Count}개 파일 생성)");
@@ -596,6 +646,9 @@ namespace VideoCutMarkerEncoder.Services
             if (allSegments.Count == 0)
                 throw new Exception("병합할 세그먼트가 없습니다.");
 
+            // 구간 길이가 0(영상 전체)인 세그먼트의 실제 길이 계산용
+            double? videoDuration = await GetVideoDurationAsync(metadata.VideoPath);
+
             var tempSegmentFiles = new List<string>();
 
             // 각 세그먼트 처리
@@ -620,12 +673,22 @@ namespace VideoCutMarkerEncoder.Services
                 string ffmpegArgs = BuildMergeFFmpegCommand(metadata, segment.StartTime, segment.EndTime,
                     cropX, cropY, groupInfo, tempFilePath);
 
-                // 진행률 업데이트
-                int progress = (i * 80 / allSegments.Count); // 80%까지 개별 세그먼트 처리
-                UpdateProgress(task, progress, $"segment {i + 1}/{allSegments.Count} processing");
+                // 세그먼트 실제 길이 (StartTime==EndTime이면 영상 끝까지)
+                double segmentDuration = segment.EndTime > segment.StartTime
+                    ? segment.EndTime - segment.StartTime
+                    : (videoDuration ?? 0) - segment.StartTime;
 
-                // FFmpeg 실행
-                bool success = await RunFFmpegProcessAsync(ffmpegArgs);
+                UpdateProgress(task, 0, $"segment {i + 1}/{allSegments.Count} processing",
+                    currentSegment: i + 1, totalSegments: allSegments.Count);
+
+                // FFmpeg 실행 (실시간 진행률 반영) - Status에는 현재 세그먼트 인코딩 %, Progress에는 "현재/전체" 세그먼트 개수
+                bool success = await RunFFmpegProcessAsync(ffmpegArgs, segmentDuration, fraction =>
+                {
+                    UpdateProgress(task, (int)(fraction * 100),
+                        $"segment {i + 1}/{allSegments.Count} processing ({(int)(fraction * 100)}%)",
+                        currentSegment: i + 1, totalSegments: allSegments.Count);
+                });
+
                 if (!success)
                     throw new Exception($"segment {i + 1} process fail");
             }
@@ -700,7 +763,10 @@ namespace VideoCutMarkerEncoder.Services
             int cropX, int cropY, GroupInfo groupInfo, string outputPath)
         {
             var args = new StringBuilder();
-            args.Append($"-y -ss {startTime} -i \"{metadata.VideoPath}\" -t {endTime - startTime} ");
+            double durationSep = endTime - startTime;
+            args.Append($"-y -ss {startTime} -i \"{metadata.VideoPath}\" ");
+            if (durationSep > 0)
+                args.Append($"-t {durationSep} ");
 
             // ✅ Copy 코덱이면 필터 없이 스트림 복사만
             string videoCodec = GetVideoCodec(metadata);
@@ -839,7 +905,10 @@ namespace VideoCutMarkerEncoder.Services
             int cropX, int cropY, GroupInfo groupInfo, string outputPath)
         {
             var args = new StringBuilder();
-            args.Append($"-y -ss {startTime} -i \"{metadata.VideoPath}\" -t {endTime - startTime} ");
+            double durationMerge = endTime - startTime;
+            args.Append($"-y -ss {startTime} -i \"{metadata.VideoPath}\" ");
+            if (durationMerge > 0)
+                args.Append($"-t {durationMerge} ");
 
             // ✅ Copy 코덱이면 필터 없이 스트림 복사만
             string videoCodec = GetVideoCodec(metadata);
@@ -904,7 +973,7 @@ namespace VideoCutMarkerEncoder.Services
         /// </summary>
         private string GetWatermarkFilter(string text)
         {
-            return $"drawtext=text='{text}':x=w-tw-10:y=h-th-10:fontsize=16:fontcolor=white@0.7:borderw=2:bordercolor=black@0.6";
+            return $"drawtext=fontfile=/Windows/Fonts/arial.ttf:text='{text}':x=w-tw-10:y=h-th-10:fontsize=16:fontcolor=white@0.7:borderw=2:bordercolor=black@0.6";
         }
         /// <summary>
         /// 스케일링 + 패딩 필터 생성 (비율 유지)
@@ -1007,7 +1076,7 @@ namespace VideoCutMarkerEncoder.Services
 
                 string concatArgs = $"-y -f concat -safe 0 -i \"{listFilePath}\" -c copy \"{finalPath}\"";
 
-                UpdateProgress(task, 90, "최종 병합 중...");
+                UpdateProgress(task, 90, "Merging...");
                 bool success = await RunFFmpegProcessAsync(concatArgs);
 
                 if (!success)
@@ -1040,10 +1109,28 @@ namespace VideoCutMarkerEncoder.Services
             {
                 args.Append($"-r {metadata.EncodingSettings.TargetFps} ");
             }
-            // 품질 설정
+            // 품질 설정 (코덱별로 옵션 이름이 다름 - cq 값을 코덱에 맞는 옵션으로 변환)
             int cq = metadata.EncodingSettings?.CQ > 0 ?
                 metadata.EncodingSettings.CQ : _settingsManager.Settings.VideoQuality;
-            args.Append($"-cq {cq} ");
+
+            switch (videoCodec)
+            {
+                case "libx264":
+                case "libx265":
+                    args.Append($"-crf {cq} ");
+                    break;
+                case "h264_nvenc":
+                case "hevc_nvenc":
+                    args.Append($"-cq {cq} ");
+                    break;
+                case "h264_amf":
+                case "hevc_amf":
+                    args.Append($"-rc cqp -qp_i {cq} -qp_p {cq} -qp_b {cq} ");
+                    break;
+                default:
+                    args.Append($"-cq {cq} ");
+                    break;
+            }
 
             // 오디오 코덱
             string audioCodec = GetAudioCodec(metadata);
@@ -1146,7 +1233,7 @@ namespace VideoCutMarkerEncoder.Services
         /// <summary>
         /// FFmpeg 프로세스 실행
         /// </summary>
-        private async Task<bool> RunFFmpegProcessAsync(string arguments)
+        private async Task<bool> RunFFmpegProcessAsync(string arguments, double segmentDurationSeconds = 0, Action<double> onProgress = null)
         {
             using (Process process = new Process())
             {
@@ -1157,17 +1244,38 @@ namespace VideoCutMarkerEncoder.Services
                 process.StartInfo.RedirectStandardOutput = true;
                 process.StartInfo.RedirectStandardError = true;
 
-                process.Start();
+                var errorOutput = new StringBuilder();
+                var timeRegex = new System.Text.RegularExpressions.Regex(@"time=(\d+):(\d+):(\d+)\.(\d+)");
 
-                // ★ 핵심: 출력 스트림을 계속 읽어줘야 함!
-                var outputTask = process.StandardOutput.ReadToEndAsync();
-                var errorTask = process.StandardError.ReadToEndAsync();
+                // ★ 핵심: 출력 스트림을 계속 읽어줘야 함! (실시간 진행률 파싱 겸용)
+                process.OutputDataReceived += (s, e) => { };
+                process.ErrorDataReceived += (s, e) =>
+                {
+                    if (string.IsNullOrEmpty(e.Data)) return;
+                    errorOutput.AppendLine(e.Data);
+
+                    if (segmentDurationSeconds > 0 && onProgress != null)
+                    {
+                        var match = timeRegex.Match(e.Data);
+                        if (match.Success)
+                        {
+                            double currentSeconds =
+                                int.Parse(match.Groups[1].Value) * 3600 +
+                                int.Parse(match.Groups[2].Value) * 60 +
+                                int.Parse(match.Groups[3].Value) +
+                                int.Parse(match.Groups[4].Value) / 100.0;
+
+                            double fraction = Math.Min(Math.Max(currentSeconds / segmentDurationSeconds, 0.0), 1.0);
+                            onProgress(fraction);
+                        }
+                    }
+                };
+
+                process.Start();
+                process.BeginOutputReadLine();
+                process.BeginErrorReadLine();
 
                 await process.WaitForExitAsync();
-
-                // 출력도 완료될 때까지 대기
-                await Task.WhenAll(outputTask, errorTask);
-                var errorOutput = await errorTask;
 
                 // ✅ 에러 출력 로깅 추가
                 if (process.ExitCode != 0)
@@ -1182,17 +1290,22 @@ namespace VideoCutMarkerEncoder.Services
         /// <summary>
         /// 진행 상황 업데이트
         /// </summary>
-        private void UpdateProgress(ProcessingTask task, int progress, string status)
+        private void UpdateProgress(ProcessingTask task, int progress, string status,
+            int currentSegment = 0, int totalSegments = 0)
         {
             task.Progress = progress;
             task.Status = status;
+            task.CurrentSegment = currentSegment;
+            task.TotalSegments = totalSegments;
 
             ProcessingProgress?.Invoke(this, new ProcessingProgressEventArgs
             {
                 Metadata = task.Metadata,
                 TaskId = task.TaskId,
                 Progress = progress,
-                Status = status
+                Status = status,
+                CurrentSegment = currentSegment,
+                TotalSegments = totalSegments
             });
         }
 
@@ -1261,6 +1374,56 @@ namespace VideoCutMarkerEncoder.Services
 
             return null;
         }
+
+        /// <summary>
+        /// FFprobe로 비디오 전체 길이(초) 확인
+        /// </summary>
+        private async Task<double?> GetVideoDurationAsync(string videoPath)
+        {
+            try
+            {
+                string ffprobePath = Path.Combine(
+                    Path.GetDirectoryName(_ffmpegPath),
+                    "ffprobe.exe"
+                );
+
+                if (!File.Exists(ffprobePath))
+                    return null;
+
+                using (Process process = new Process())
+                {
+                    process.StartInfo.FileName = ffprobePath;
+                    process.StartInfo.Arguments = $"-v error -show_entries format=duration -of csv=p=0 \"{videoPath}\"";
+                    process.StartInfo.UseShellExecute = false;
+                    process.StartInfo.CreateNoWindow = true;
+                    process.StartInfo.RedirectStandardOutput = true;
+                    process.StartInfo.RedirectStandardError = true;
+
+                    process.Start();
+
+                    var outputTask = process.StandardOutput.ReadToEndAsync();
+                    var errorTask = process.StandardError.ReadToEndAsync();
+
+                    await process.WaitForExitAsync();
+
+                    var output = await outputTask;
+                    await errorTask;
+
+                    if (process.ExitCode == 0 &&
+                        double.TryParse(output.Trim(), System.Globalization.NumberStyles.Any, System.Globalization.CultureInfo.InvariantCulture, out double duration))
+                    {
+                        return duration;
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"⚠️ 비디오 길이 확인 오류: {ex.Message}");
+            }
+
+            return null;
+        }
+
         /// <summary>
         /// SMB 비디오의 메타데이터 검증 및 자동 보정
         /// </summary>

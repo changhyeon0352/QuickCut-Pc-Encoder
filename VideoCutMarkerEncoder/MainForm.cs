@@ -23,6 +23,11 @@ namespace VideoCutMarkerEncoder
         {
 
             InitializeComponent();
+
+            // ⭐ 작업표시줄/타이틀바 아이콘을 exe에 내장된 앱 아이콘(icon.ico)으로 설정
+            // (ApplicationIcon은 exe 파일 아이콘만 바꾸고, 실행 중 창 아이콘은 Form.Icon을 따로 설정해야 함)
+            this.Icon = Icon.ExtractAssociatedIcon(Application.ExecutablePath);
+
             InitializeServices();
             SetupTrayIcon();
             // ⭐ 폼 활성화 시 상태 갱신
@@ -210,7 +215,7 @@ namespace VideoCutMarkerEncoder
         {
             var item = new ListViewItem(Path.GetFileName(task.Metadata.VideoFileName));
             item.SubItems.Add(task.Status);
-            item.SubItems.Add($"{task.Progress}%");
+            item.SubItems.Add(FormatProgressText(task));
             item.Tag = task.TaskId;
 
             listTasks.Items.Add(item);
@@ -228,6 +233,8 @@ namespace VideoCutMarkerEncoder
                     // 작업 상태 업데이트
                     task.Status = e.Status;
                     task.Progress = e.Progress;
+                    task.CurrentSegment = e.CurrentSegment;
+                    task.TotalSegments = e.TotalSegments;
 
                     // UI 업데이트
                     UpdateTaskInListView(task);
@@ -247,6 +254,8 @@ namespace VideoCutMarkerEncoder
                     // 작업 상태 업데이트
                     task.Status = e.Success ? "Complete" : "Failed";
                     task.Progress = e.Success ? 100 : 0;
+                    task.CurrentSegment = 0;
+                    task.TotalSegments = 0;
                     task.OutputPath = e.OutputFilePath;
 
                     // UI 업데이트
@@ -268,6 +277,17 @@ namespace VideoCutMarkerEncoder
             }));
         }
 
+        /// <summary>
+        /// Progress 컬럼 표시 텍스트 - 세그먼트 처리 중이면 "현재/전체", 아니면 백분율
+        /// </summary>
+        private string FormatProgressText(ProcessingTask task)
+        {
+            if (task.TotalSegments > 0)
+                return $"{task.CurrentSegment}/{task.TotalSegments}";
+
+            return $"{task.Progress}%";
+        }
+
         private void UpdateTaskInListView(ProcessingTask task)
         {
             foreach (ListViewItem item in listTasks.Items)
@@ -275,7 +295,7 @@ namespace VideoCutMarkerEncoder
                 if ((string)item.Tag == task.TaskId)
                 {
                     item.SubItems[1].Text = task.Status;
-                    item.SubItems[2].Text = $"{task.Progress}%";
+                    item.SubItems[2].Text = FormatProgressText(task);
 
                     // 색상 설정
                     if (task.Status == "Complete")

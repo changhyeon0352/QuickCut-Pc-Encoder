@@ -52,7 +52,7 @@ namespace VideoCutMarkerEncoder.Models
             VideoQuality = 26;              // CQ 값 (26는 좋은 품질/용량 균형)
             EncodingSpeed = "medium";       // 중간 속도
 
-            AutoDeleteShareFiles = false;
+            AutoDeleteShareFiles = true;
         }
     }
 }

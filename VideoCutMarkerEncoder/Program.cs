@@ -82,7 +82,7 @@ namespace VideoCutMarker.Desktop
                 MessageBox.Show(
                     "FFmpeg is required to run this application.\n\n" +
                     "How to install:\n\n" +
-                    "1. Download 'ffmpeg-release-essentials.zip' from the page that just opened\n\n" +
+                    "1. Download 'ffmpeg-release-full.zip' from the page that just opened\n\n" +
                     "2. Extract the ZIP file\n\n" +
                     "3. Copy all files from the 'bin' folder to:\n" +
                     $"   {Path.GetDirectoryName(ffmpegPath)}\n\n" +

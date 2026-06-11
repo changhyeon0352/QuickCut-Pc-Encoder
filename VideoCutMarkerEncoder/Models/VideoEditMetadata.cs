@@ -12,6 +12,10 @@ namespace VideoCutMarkerEncoder.Models
         public string Id { get; set; }
         public string VideoFileName { get; set; }
         public string VideoPath { get; set; }
+        /// <summary>
+        /// 모바일에서 표시 이름 변경 전 실제 원본 파일 경로 (VideoPath로 못 찾을 때 폴백용)
+        /// </summary>
+        public string OriginalVideoPath { get; set; }
         public string MetadataVersion { get; set; } = "1.0";
         public int VideoWidth { get; set; }
         public int VideoHeight { get; set; }
